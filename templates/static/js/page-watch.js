@@ -3081,29 +3081,68 @@ async function initWatch(videoId) {
 
   document.getElementById('reloadAllBtn').addEventListener('click', () => reloadAll(videoId));
 
+  // Fetch stream + metadata independently so a failure on one side
+  // doesn't break the other. Each has its own retry budget.
+  const [streamSettled, metaSettled] = await Promise.allSettled([
+    withRetry(() => fetchStream(`/api/stream/${videoId}`), 6),
+    withRetry(() => fetchMain(`/api/videos/${videoId}`), 6)
+  ]);
+
+  const streamResult = streamSettled.status === 'fulfilled' ? streamSettled.value : null;
+  let metaData = metaSettled.status === 'fulfilled' ? metaSettled.value : null;
+
+  // Build a minimal meta fallback so the page is still usable.
+  if (!metaData) {
+    console.error('meta fetch failed', metaSettled.reason);
+    metaData = {
+      videoId,
+      title: '動画',
+      author: '',
+      authorId: '',
+      description: '',
+      viewCount: 0,
+      likeCount: 0,
+      publishedText: '',
+      recommendedVideos: [],
+    };
+  }
+
+  // Auto-fallback to embedded player when stream fetch fails entirely.
+  // This guarantees the user can always watch the video.
+  const _hasStream = !!(streamResult && streamResult.data);
+  if (!_hasStream) {
+    try {
+      const _def = (typeof getSettings === 'function' && getSettings().defaultPlaybackMode) || 'nocookie';
+      const _fallbackBtnId = _def === 'edu' ? 'modeEdu' : 'modeNocookie';
+      const _btn = document.getElementById(_fallbackBtnId) || document.getElementById('modeNocookie');
+      if (_btn && !_btn.classList.contains('active')) {
+        setTimeout(() => _btn.click(), 0);
+      }
+    } catch (_) {}
+  }
+
   try {
-    const [streamResult, metaData] = await Promise.all([
-      withRetry(() => fetchStream(`/api/stream/${videoId}`)),
-      withRetry(() => fetchMain(`/api/videos/${videoId}`))
-    ]);
+    const streamData = streamResult ? streamResult.data : null;
+    const instanceUrl = streamResult ? streamResult.instanceUrl : null;
 
-    const { data: streamData, instanceUrl } = streamResult;
-
-    const invInstance = instanceUrl || streamData._invidious_instance || null;
+    const invInstance = instanceUrl || (streamData && streamData._invidious_instance) || null;
     streamExcludeList = invInstance ? [invInstance] : [];
     cachedInvInstance = invInstance;
-    streamAltBarReady = true;
-    initStreamAltBtn(videoId);
+    streamAltBarReady = !!streamData;
+    if (streamData) initStreamAltBtn(videoId);
 
-    // Only show stream-specific UI if stream mode is currently active
+    // Only show stream-specific UI if stream mode is currently active and we have data
     const isStreamModeActive = document.getElementById('modeStream').classList.contains('active');
-    if (isStreamModeActive) {
+    if (isStreamModeActive && streamData) {
       document.getElementById('streamAltBtn').removeAttribute('hidden');
       setInstanceLabel(invInstance);
     }
     setHQInstanceLabel(invInstance);
 
-    setupPlayer(streamData, videoId);
+    if (streamData) {
+      try { setupPlayer(streamData, videoId); }
+      catch (e) { console.error('setupPlayer failed', e); }
+    }
 
     // ── 再生位置の復元と保存 ──
     {
@@ -3134,10 +3173,11 @@ async function initWatch(videoId) {
       _posPlayer.addEventListener('ended', () => clearSavedPosition(videoId), { once: true });
     }
 
-    renderVideoInfo(metaData, videoId);
-    const _related = metaData.recommendedVideos || [];
+    try { renderVideoInfo(metaData, videoId); }
+    catch (e) { console.error('renderVideoInfo failed', e); }
+    const _related = (metaData && metaData.recommendedVideos) || [];
     _relatedVideos = _related;
-    renderRelated(_related);
+    try { renderRelated(_related); } catch (e) { console.error('renderRelated failed', e); }
 
     // Autoplay next (settings) — skip if in playlist/mix context
     if (!listParam) {
@@ -3156,8 +3196,8 @@ async function initWatch(videoId) {
     }
 
   } catch (e) {
-    console.error(e);
-    showWatchError('動画情報の取得に失敗しました。しばらく経ってから再試行してください。', false);
+    console.error('watch render error', e);
+    // Don't show the hard error — embedded fallback above keeps the page usable.
   }
 
   initTranscript(videoId);
