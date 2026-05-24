@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}ツール — ChocoTube Pro{% endblock %}
+{% block body_class %}page-tool{% endblock %}
+{% block content %}
+<main>
+  <section class="static-page">
+    <h1 class="page-title">
+      <span class="page-title-icon">🧰</span> その他のツール
+    </h1>
+    <p class="page-description">ChocoTube Pro の便利機能をまとめて呼び出せます。</p>
+
+    <div class="tool-grid">
+      <a href="/dl" class="tool-card">
+        <div class="tool-icon">📥</div>
+        <div class="tool-content">
+          <h3 class="tool-title">ダウンローダー</h3>
+          <p class="tool-description">サムネ取得 / URL から ChocoTube で視聴。</p>
+        </div>
+      </a>
+
+      <a href="/getcode" class="tool-card">
+        <div class="tool-icon">💻</div>
+        <div class="tool-content">
+          <h3 class="tool-title">コード取得</h3>
+          <p class="tool-description">指定 URL の HTML ソースを取得して表示。</p>
+        </div>
+      </a>
+
+      <a href="/proxy" class="tool-card">
+        <div class="tool-icon">🌐</div>
+        <div class="tool-content">
+          <h3 class="tool-title">Web プロキシ</h3>
+          <p class="tool-description">ブロックされたサイトに経由アクセス。</p>
+        </div>
+      </a>
+
+      <a href="/history" class="tool-card">
+        <div class="tool-icon">📜</div>
+        <div class="tool-content">
+          <h3 class="tool-title">再生履歴</h3>
+          <p class="tool-description">これまでに視聴した動画を確認。</p>
+        </div>
+      </a>
+
+      <a href="/favorite" class="tool-card">
+        <div class="tool-icon">⭐</div>
+        <div class="tool-content">
+          <h3 class="tool-title">お気に入り</h3>
+          <p class="tool-description">後で見たい動画を保存・閲覧。</p>
+        </div>
+      </a>
+
+      <a href="/library" class="tool-card">
+        <div class="tool-icon">📚</div>
+        <div class="tool-content">
+          <h3 class="tool-title">ライブラリ</h3>
+          <p class="tool-description">プレイリスト・登録チャンネル。</p>
+        </div>
+      </a>
+
+      <a href="/subscribed-channels" class="tool-card">
+        <div class="tool-icon">✦</div>
+        <div class="tool-content">
+          <h3 class="tool-title">登録チャンネル</h3>
+          <p class="tool-description">登録したチャンネル一覧を表示。</p>
+        </div>
+      </a>
+
+      <a href="/blog" class="tool-card">
+        <div class="tool-icon">📝</div>
+        <div class="tool-content">
+          <h3 class="tool-title">ブログ</h3>
+          <p class="tool-description">更新情報・お知らせ。</p>
+        </div>
+      </a>
+
+      <a href="/help" class="tool-card">
+        <div class="tool-icon">❓</div>
+        <div class="tool-content">
+          <h3 class="tool-title">ヘルプ</h3>
+          <p class="tool-description">使い方・よくある質問。</p>
+        </div>
+      </a>
+
+      <a href="/settings" class="tool-card">
+        <div class="tool-icon">⚙️</div>
+        <div class="tool-content">
+          <h3 class="tool-title">設定</h3>
+          <p class="tool-description">検索方法・再生モードをカスタマイズ。</p>
+        </div>
+      </a>
+
+      <a href="/chat" class="tool-card">
+        <div class="tool-icon">💬</div>
+        <div class="tool-content">
+          <h3 class="tool-title">チャット</h3>
+          <p class="tool-description">ChocoTube ユーザーと交流。</p>
+        </div>
+      </a>
+
+      <a href="/links" class="tool-card">
+        <div class="tool-icon">🔗</div>
+        <div class="tool-content">
+          <h3 class="tool-title">リンク</h3>
+          <p class="tool-description">関連サイト・ミラー一覧。</p>
+        </div>
+      </a>
+    </div>
+  </section>
+</main>
+{% endblock %}

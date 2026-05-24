@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}検索 — ChocoTube Pro{% endblock %}
+{% block body_class %}page-search{% endblock %}
+{% block content %}
+<div class="filter-bar" id="filterBar">
+    <div class="filter-bar-inner">
+
+      <div class="filter-group">
+        <label class="filter-label">並び順</label>
+        <select id="sortSelect" class="filter-select">
+          <option value="relevance">関連度順</option>
+          <option value="rating">評価順</option>
+          <option value="upload_date">投稿日順</option>
+          <option value="view_count">再生回数順</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">投稿日</label>
+        <select id="dateSelect" class="filter-select">
+          <option value="">すべて</option>
+          <option value="hour">1時間以内</option>
+          <option value="today">今日</option>
+          <option value="week">今週</option>
+          <option value="month">今月</option>
+          <option value="year">今年</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">動画長</label>
+        <select id="durationSelect" class="filter-select">
+          <option value="">すべて</option>
+          <option value="short">短い（4分未満）</option>
+          <option value="medium">普通（4〜20分）</option>
+          <option value="long">長い（20分以上）</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">種別</label>
+        <select id="typeSelect" class="filter-select">
+          <option value="all">すべて</option>
+          <option value="video">動画</option>
+          <option value="channel">チャンネル</option>
+          <option value="playlist">再生リスト</option>
+          <option value="movie">映画</option>
+          <option value="show">番組</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">機能</label>
+        <div class="features-wrap">
+          <button type="button" class="features-toggle" id="featuresToggle">
+            <span id="featuresLabel">すべて</span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="features-dropdown" id="featuresDropdown" hidden>
+            <label class="feature-item"><input type="checkbox" value="hd" /> HD</label>
+            <label class="feature-item"><input type="checkbox" value="4k" /> 4K</label>
+            <label class="feature-item"><input type="checkbox" value="live" /> ライブ配信</label>
+            <label class="feature-item"><input type="checkbox" value="subtitles" /> 字幕あり</label>
+            <label class="feature-item"><input type="checkbox" value="hdr" /> HDR</label>
+            <label class="feature-item"><input type="checkbox" value="360" /> 360度</label>
+            <label class="feature-item"><input type="checkbox" value="vr180" /> VR180</label>
+            <label class="feature-item"><input type="checkbox" value="3d" /> 3D</label>
+            <label class="feature-item"><input type="checkbox" value="creative_commons" /> CC</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">地域</label>
+        <select id="regionSelect" class="filter-select region-select-sm"></select>
+      </div>
+
+    </div>
+  </div>
+
+  <main>
+    <div id="shortsSection" hidden></div>
+    <div class="result-header" id="resultHeader" hidden>
+      <span id="resultInfo"></span>
+    </div>
+    <div id="resultGrid" class="video-grid"></div>
+    <div class="pagination" id="pagination" hidden>
+      <button id="prevBtn" class="page-btn" disabled>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
+        前のページ
+      </button>
+      <span id="pageInfo" class="page-info"></span>
+      <button id="nextBtn" class="page-btn">
+        次のページ
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </main>
+{% endblock %}
