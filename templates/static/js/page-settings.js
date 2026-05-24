@@ -9,6 +9,7 @@ function initSettings() {
   const settings = getSettings();
 
   const speedSelect           = document.getElementById('defaultSpeedSelect');
+  const modeSelect            = document.getElementById('defaultPlaybackModeSelect');
   const loopToggle            = document.getElementById('loopToggle');
   const autoplayNextToggle    = document.getElementById('autoplayNextToggle');
   const autoplayToggle        = document.getElementById('autoplayToggle');
@@ -21,6 +22,7 @@ function initSettings() {
   const toast                 = document.getElementById('savedToast');
 
   speedSelect.value            = String(settings.defaultSpeed);
+  if (modeSelect) modeSelect.value = settings.defaultPlaybackMode || 'stream';
   loopToggle.checked           = !!settings.loop;
   autoplayNextToggle.checked   = !!settings.autoplayNext;
   autoplayToggle.checked       = settings.autoplay !== false;
@@ -44,6 +46,7 @@ function initSettings() {
   function persist() {
     saveSettings({
       defaultSpeed: parseFloat(speedSelect.value),
+      defaultPlaybackMode: modeSelect ? modeSelect.value : 'stream',
       loop: loopToggle.checked,
       autoplayNext: autoplayNextToggle.checked,
       autoplay: autoplayToggle.checked,
@@ -60,6 +63,7 @@ function initSettings() {
   });
 
   speedSelect.addEventListener('change', persist);
+  if (modeSelect) modeSelect.addEventListener('change', persist);
   loopToggle.addEventListener('change', () => {
     if (loopToggle.checked && autoplayNextToggle.checked) {
       autoplayNextToggle.checked = false;
@@ -80,6 +84,7 @@ function initSettings() {
     localStorage.removeItem('chocotube_settings');
     const def = getSettings();
     speedSelect.value            = String(def.defaultSpeed);
+    if (modeSelect) modeSelect.value = def.defaultPlaybackMode || 'stream';
     loopToggle.checked           = def.loop;
     autoplayNextToggle.checked   = def.autoplayNext;
     autoplayToggle.checked       = def.autoplay !== false;

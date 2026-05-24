@@ -846,3 +846,49 @@ class StaticCacheMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(StaticCacheMiddleware)
 app.mount("/static", StaticFiles(directory="templates/static"), name="static")
+
+
+# ── 404 noise suppression for Render logs ──────────────────────────────────
+# Browsers and bots probe common static paths (favicon, robots, sw, etc).
+# Returning a 204/empty response keeps the Render access log clean.
+
+_SILENT_PROBES = {
+    "/favicon.ico",
+    "/apple-touch-icon.png",
+    "/apple-touch-icon-precomposed.png",
+    "/robots.txt",
+    "/sitemap.xml",
+    "/sw.js",
+    "/service-worker.js",
+    "/manifest.json",
+    "/manifest.webmanifest",
+    "/browserconfig.xml",
+    "/.well-known/security.txt",
+}
+
+
+@app.middleware("http")
+async def silence_known_probes(request: Request, call_next):
+    path = request.url.path
+    if path in _SILENT_PROBES:
+        # 204 No Content — no body, no log noise, no broken-image icon
+        from fastapi.responses import Response as _Resp
+        return _Resp(status_code=204)
+    return await call_next(request)
+
+
+# Generic fallback for any unmatched HTML page request — render the home page
+# instead of a hard 404. This handles old links, typos, and trailing-slash
+# variants that otherwise fill the Render log with 404s.
+from fastapi.exceptions import HTTPException as _HTTPException
+from starlette.exceptions import HTTPException as _StarletteHTTPException
+
+
+@app.exception_handler(404)
+async def _not_found_handler(request: Request, exc):
+    path = request.url.path
+    # Keep API 404s as JSON so the frontend can still detect them.
+    if path.startswith("/api/") or path.startswith("/proxy/") or path.startswith("/static/"):
+        return JSONResponse({"error": "not found", "path": path}, status_code=404)
+    # Otherwise serve the index page (SPA-style soft 404).
+    return templates.TemplateResponse(request, "index.html", status_code=200)

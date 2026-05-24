@@ -36,6 +36,19 @@
 
         <div class="settings-row">
           <div class="settings-row-info">
+            <div class="settings-row-label">デフォルト再生方法</div>
+            <div class="settings-row-desc">動画を開いたときに使う再生モード。次回以降この方法で再生されます</div>
+          </div>
+          <select class="settings-select" id="defaultPlaybackModeSelect">
+            <option value="stream" selected>ストリーム（標準）</option>
+            <option value="hq">高画質・高音質</option>
+            <option value="nocookie">nocookie 埋め込み</option>
+            <option value="edu">edu（学校向け）</option>
+          </select>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-info">
             <div class="settings-row-label">デフォルト音量</div>
             <div class="settings-row-desc">動画を開いたときに自動的に適用される音量</div>
           </div>

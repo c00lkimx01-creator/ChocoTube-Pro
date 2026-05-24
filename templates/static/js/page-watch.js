@@ -842,6 +842,19 @@ function initModeBar(videoId) {
     setTimeout(() => modeNocookie.click(), 0);
   } else if (modeParam === 'edu' && modeEdu) {
     setTimeout(() => modeEdu.click(), 0);
+  } else if (!modeParam) {
+    // Apply user's saved default playback mode from settings
+    try {
+      const _s = (typeof getSettings === 'function') ? getSettings() : null;
+      const _def = _s && _s.defaultPlaybackMode;
+      if (_def === 'edu' && modeEdu) setTimeout(() => modeEdu.click(), 0);
+      else if (_def === 'nocookie' && modeNocookie) setTimeout(() => modeNocookie.click(), 0);
+      else if (_def === 'hq') {
+        const _mHQ = document.getElementById('modeHQ');
+        if (_mHQ && !_mHQ.disabled) setTimeout(() => _mHQ.click(), 0);
+      }
+      // 'stream' is already the default active mode
+    } catch (_) {}
   }
 
 }

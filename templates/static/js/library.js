@@ -231,7 +231,7 @@ function removeFavoriteMix(mixId) {
 const LIB_SETTINGS_KEY = 'chocotube_settings';
 
 function getSettings() {
-  const defaults = { defaultSpeed: 1, loop: false, autoplayNext: false, defaultVolume: 100 };
+  const defaults = { defaultSpeed: 1, loop: false, autoplayNext: false, defaultVolume: 100, defaultPlaybackMode: 'stream' };
   try { return { ...defaults, ...JSON.parse(localStorage.getItem(LIB_SETTINGS_KEY) || '{}') }; }
   catch { return defaults; }
 }
