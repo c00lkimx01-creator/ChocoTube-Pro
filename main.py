@@ -575,7 +575,56 @@ async def whats():
 
 @app.get("/version")
 async def version():
-    return {"ver": "1.11"}
+    return {"ver": "1.13"}
+
+
+@app.post("/api/translate")
+async def translate_text(request: Request):
+    """Translate text via Google Translate's public endpoint (no API key).
+    Body: {"text": "...", "to": "ja", "from": "auto"}
+    Returns: {"text": "..."}
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid json"}, status_code=400)
+    text = (body or {}).get("text", "")
+    to_lang = (body or {}).get("to", "ja") or "ja"
+    from_lang = (body or {}).get("from", "auto") or "auto"
+    if not text:
+        return {"text": ""}
+
+    client = await get_client()
+    # Chunk to keep each request well under the URL length limit
+    chunks = []
+    cur = ""
+    for line in text.split("\n"):
+        if len(cur) + len(line) + 1 > 1800 and cur:
+            chunks.append(cur)
+            cur = line
+        else:
+            cur = (cur + "\n" + line) if cur else line
+    if cur:
+        chunks.append(cur)
+
+    out_parts = []
+    for chunk in chunks:
+        params = {
+            "client": "gtx", "sl": from_lang, "tl": to_lang,
+            "dt": "t", "q": chunk,
+        }
+        try:
+            r = await client.get(
+                "https://translate.googleapis.com/translate_a/single",
+                params=params, timeout=15,
+            )
+            data = r.json()
+            sentences = data[0] if data and isinstance(data, list) else []
+            piece = "".join(s[0] for s in sentences if s and s[0])
+            out_parts.append(piece)
+        except Exception as e:
+            out_parts.append(chunk)
+    return {"text": "".join(out_parts)}
 
 
 LINKLIST_URL = "https://raw.githubusercontent.com/kuru-bana/Link-list/refs/heads/main/choco-tube-plus.json"

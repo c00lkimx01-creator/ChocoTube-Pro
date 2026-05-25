@@ -2402,3 +2402,25 @@ body.page-watch .pc-loop-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* Subtitle / CC button + panel */
+body.page-watch .vctrls-cc-btn[aria-pressed="true"] {
+  color: #ff5cf7;
+  text-shadow: 0 0 8px rgba(255, 92, 247, 0.6);
+}
+body.page-watch .vctrls-cc-panel {
+  min-width: 200px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+body.page-watch .vctrls-cc-panel .vctrls-dd-opt.active {
+  background: rgba(255, 92, 247, 0.18);
+  color: #fff;
+}
+body.page-watch #videoPlayer::cue {
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  font-size: 1.05em;
+  line-height: 1.35;
+  padding: 0.15em 0.4em;
+}

@@ -1614,7 +1614,7 @@ function renderVideoInfo(meta, videoId) {
   document.getElementById('watchTitle').textContent = meta.title || '';
 
   const views = formatViews(meta.viewCount);
-  const date = meta.publishedText || '';
+  const date = translatePublishedToJa(meta.publishedText || '');
   const likes = meta.likeCount ? `👍 ${meta.likeCount.toLocaleString()}` : '';
   const metaParts = [views, date, likes].filter(Boolean);
   document.getElementById('watchMeta').innerHTML = metaParts.map((p, i) =>
@@ -1972,6 +1972,238 @@ async function loadTranscript(videoId, lang, langBtns) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Published date EN → JA translation (relative time strings)
+// ─────────────────────────────────────────────────────────────
+function translatePublishedToJa(text) {
+  if (!text) return '';
+  const s = String(text).trim();
+  const unitMap = {
+    second: '秒', seconds: '秒',
+    minute: '分', minutes: '分',
+    hour:   '時間', hours: '時間',
+    day:    '日', days: '日',
+    week:   '週間', weeks: '週間',
+    month:  'か月', months: 'か月',
+    year:   '年', years: '年',
+  };
+  // "Streamed 2 days ago" / "Premiered 3 hours ago" / "2 days ago"
+  let m = s.match(/^(?:Streamed\s+|Premiered\s+|Started streaming\s+)?(\d+)\s+(second|seconds|minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years)\s+ago$/i);
+  if (m) {
+    const n = m[1];
+    const u = unitMap[m[2].toLowerCase()] || m[2];
+    let prefix = '';
+    if (/^Streamed/i.test(s)) prefix = '配信 ';
+    else if (/^Premiered/i.test(s)) prefix = 'プレミア公開 ';
+    else if (/^Started streaming/i.test(s)) prefix = '配信開始 ';
+    return `${prefix}${n}${u}前`;
+  }
+  // "Live now" / "LIVE"
+  if (/^live( now)?$/i.test(s)) return 'ライブ配信中';
+  // "Scheduled for ..."
+  if (/^Scheduled/i.test(s)) return s.replace(/^Scheduled\s+for\s+/i, '配信予定: ');
+  // "Premieres in 3 hours"
+  m = s.match(/^Premieres in\s+(\d+)\s+(\w+)$/i);
+  if (m) {
+    const u = unitMap[m[2].toLowerCase()] || m[2];
+    return `${m[1]}${u}後にプレミア公開`;
+  }
+  // Absolute dates like "May 23, 2024"
+  m = s.match(/^([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})$/);
+  if (m) {
+    const months = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+    const mo = months[m[1].slice(0,3).toLowerCase()];
+    if (mo) return `${m[3]}年${mo}月${parseInt(m[2],10)}日`;
+  }
+  return s;
+}
+
+// ─────────────────────────────────────────────────────────────
+// In-player subtitles (Stream + HQ modes)
+// ─────────────────────────────────────────────────────────────
+let subtitleState = {
+  videoId: null,
+  tracks: [],          // available source languages from /api/captions
+  currentLang: '',     // selected source lang ('' = off)
+  currentTlang: '',    // translation target ('' = off)
+  cache: {},           // key `${lang}|${tlang}` -> VTT string
+};
+
+function _buildVttFromLines(lines) {
+  // lines: [{start, duration?, text}] — start/duration may be sec or ms or string
+  let vtt = 'WEBVTT\n\n';
+  lines.forEach((line, i) => {
+    const startSec = tsToSeconds(line.start);
+    const nextLine = lines[i + 1];
+    let endSec;
+    if (line.duration) {
+      endSec = startSec + tsToSeconds(line.duration);
+    } else if (nextLine) {
+      endSec = tsToSeconds(nextLine.start);
+    } else {
+      endSec = startSec + 4;
+    }
+    if (endSec <= startSec) endSec = startSec + 2;
+    const fmt = (t) => {
+      const h = Math.floor(t/3600);
+      const m = Math.floor((t%3600)/60);
+      const s = (t%60);
+      const sStr = s.toFixed(3).padStart(6,'0');
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${sStr}`;
+    };
+    const text = String(line.text || '').replace(/-->/g, '–>').trim();
+    if (!text) return;
+    vtt += `${fmt(startSec)} --> ${fmt(endSec)}\n${text}\n\n`;
+  });
+  return vtt;
+}
+
+async function _fetchTranslatedLines(lines, toLang) {
+  // Send all texts joined by a unique separator to preserve alignment.
+  const SEP = '\n@@@LINE@@@\n';
+  const joined = lines.map(l => (l.text || '').replace(/\n/g, ' ')).join(SEP);
+  try {
+    const r = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: joined, to: toLang, from: 'auto' })
+    });
+    const data = await r.json();
+    const translated = (data && data.text) ? data.text : joined;
+    const parts = translated.split(/\n?@@@LINE@@@\n?/);
+    return lines.map((l, i) => ({ ...l, text: (parts[i] || l.text || '').trim() }));
+  } catch (e) {
+    console.error('translate failed', e);
+    return lines;
+  }
+}
+
+async function _loadCaptionVtt(videoId, lang, tlang) {
+  const key = `${lang}|${tlang}`;
+  if (subtitleState.cache[key]) return subtitleState.cache[key];
+  const data = await withRetry(() => fetchMain(`/api/transcripts/${videoId}?lang=${encodeURIComponent(lang)}`), 6);
+  let lines = Array.isArray(data) ? data : (data.transcript || data.captions || []);
+  if (!lines.length) return null;
+  if (tlang) {
+    lines = await _fetchTranslatedLines(lines, tlang);
+  }
+  const vtt = _buildVttFromLines(lines);
+  subtitleState.cache[key] = vtt;
+  return vtt;
+}
+
+function _applyVttToPlayer(vtt) {
+  const player = document.getElementById('videoPlayer');
+  if (!player) return;
+  // Remove previous track
+  player.querySelectorAll('track[data-cc="1"]').forEach(t => t.remove());
+  // Disable all existing text tracks
+  for (let i = 0; i < player.textTracks.length; i++) {
+    try { player.textTracks[i].mode = 'disabled'; } catch (_) {}
+  }
+  if (!vtt) return;
+  const blob = new Blob([vtt], { type: 'text/vtt' });
+  const url = URL.createObjectURL(blob);
+  const track = document.createElement('track');
+  track.kind = 'subtitles';
+  track.label = '字幕';
+  track.srclang = 'auto';
+  track.src = url;
+  track.default = true;
+  track.dataset.cc = '1';
+  player.appendChild(track);
+  // Force showing once loaded
+  setTimeout(() => {
+    if (player.textTracks && player.textTracks.length) {
+      player.textTracks[player.textTracks.length - 1].mode = 'showing';
+    }
+  }, 50);
+}
+
+async function _refreshSubtitles() {
+  const { videoId, currentLang, currentTlang } = subtitleState;
+  const ccBtn = document.getElementById('vcCcBtn');
+  if (!videoId || !currentLang) {
+    _applyVttToPlayer(null);
+    if (ccBtn) ccBtn.setAttribute('aria-pressed', 'false');
+    return;
+  }
+  if (ccBtn) {
+    ccBtn.setAttribute('aria-pressed', 'true');
+    ccBtn.title = '字幕: 読み込み中...';
+  }
+  try {
+    const vtt = await _loadCaptionVtt(videoId, currentLang, currentTlang);
+    _applyVttToPlayer(vtt);
+    if (ccBtn) ccBtn.title = currentTlang ? `字幕 (翻訳: ${currentTlang})` : '字幕';
+  } catch (e) {
+    console.error('subtitle load failed', e);
+    if (ccBtn) {
+      ccBtn.title = '字幕: 読み込み失敗';
+      ccBtn.setAttribute('aria-pressed', 'false');
+    }
+  }
+}
+
+async function initSubtitles(videoId) {
+  const wrap = document.getElementById('vcCcWrap');
+  const optsEl = document.getElementById('vcCcOpts');
+  const tlangEl = document.getElementById('vcCcTlangOpts');
+  if (!wrap || !optsEl) return;
+
+  subtitleState = { videoId, tracks: [], currentLang: '', currentTlang: '', cache: {} };
+
+  try {
+    const data = await withRetry(() => fetchMain(`/api/captions/${videoId}`), 6);
+    const tracks = Array.isArray(data) ? data : (data.captions || []);
+    if (!tracks.length) { wrap.setAttribute('hidden', ''); return; }
+
+    subtitleState.tracks = tracks;
+    wrap.removeAttribute('hidden');
+
+    // Build language buttons (keep "オフ" first)
+    optsEl.innerHTML = '<button class="vctrls-dd-opt active" data-cc-lang="">オフ</button>';
+    tracks.forEach(track => {
+      const code = track.language_code || track.languageCode || track.label || '';
+      const label = track.label || code || '?';
+      const btn = document.createElement('button');
+      btn.className = 'vctrls-dd-opt';
+      btn.dataset.ccLang = code;
+      btn.textContent = label;
+      optsEl.appendChild(btn);
+    });
+
+    // Lang click
+    optsEl.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-cc-lang]');
+      if (!b) return;
+      optsEl.querySelectorAll('.vctrls-dd-opt').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      subtitleState.currentLang = b.dataset.ccLang || '';
+      _refreshSubtitles();
+    });
+
+    // Translation target click
+    if (tlangEl) {
+      tlangEl.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-cc-tlang]');
+        if (!b) return;
+        tlangEl.querySelectorAll('.vctrls-dd-opt').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        subtitleState.currentTlang = b.dataset.ccTlang || '';
+        // Invalidate translation cache entries (keep raw)
+        Object.keys(subtitleState.cache).forEach(k => {
+          if (k.split('|')[1]) delete subtitleState.cache[k];
+        });
+        if (subtitleState.currentLang) _refreshSubtitles();
+      });
+    }
+  } catch (e) {
+    console.error('initSubtitles failed', e);
+    wrap.setAttribute('hidden', '');
+  }
+}
+
 async function initTranscript(videoId) {
   const section = document.getElementById('transcriptSection');
   const body = document.getElementById('transcriptBody');
@@ -2296,6 +2528,7 @@ async function reloadAll(videoId) {
   }
 
   initTranscript(videoId);
+  initSubtitles(videoId);
 
   reloadAllInProgress = false;
   if (reloadAllBtn) reloadAllBtn.disabled = false;
@@ -2674,6 +2907,8 @@ function initCustomControls() {
   if (vcQualWrap) initDropdown(vcQualWrap);
   if (vcHQVidWrap) initDropdown(vcHQVidWrap);
   if (vcHQAudWrap) initDropdown(vcHQAudWrap);
+  const vcCcWrap = document.getElementById('vcCcWrap');
+  if (vcCcWrap) initDropdown(vcCcWrap);
 
   // ── Speed ──
   let currentSpeed = 1;
@@ -3227,5 +3462,6 @@ async function initWatch(videoId) {
   }
 
   initTranscript(videoId);
+  initSubtitles(videoId);
 }
 })();
