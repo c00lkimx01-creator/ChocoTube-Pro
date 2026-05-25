@@ -2377,3 +2377,28 @@ body.page-watch .pb-hint {
   line-height: 1.5;
   margin-top: -0.3rem;
 }
+
+/* Quick loop button (next to playback mode) */
+body.page-watch .pc-loop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+body.page-watch .pc-loop-btn[aria-pressed="true"] {
+  background: linear-gradient(135deg, var(--accent), #6f3a1d);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 0 8px var(--glow-purple);
+}
+body.page-watch .pc-loop-btn[aria-pressed="true"]::after {
+  content: "ON";
+  font-size: 0.62rem;
+  background: rgba(255,255,255,0.18);
+  padding: 1px 5px;
+  border-radius: 999px;
+  margin-left: 2px;
+}
+body.page-watch .pc-loop-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

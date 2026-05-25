@@ -118,9 +118,11 @@
     const prevBtn = document.getElementById('sfPrevBtn');
     const nextBtn = document.getElementById('sfNextBtn');
     if (prevBtn) prevBtn.disabled = queueIdx <= 0;
-    const hasMoreFetchable = (channelMode && channelContinuation) || (searchMode && searchContinuation);
+    // searchMode/channelMode は常に次ページを取得しに行けるようにする
+    const hasMoreFetchable = (channelMode && channelContinuation) || searchMode || channelMode;
     if (nextBtn) nextBtn.disabled = queueIdx >= queue.length - 1 && !hasMoreFetchable;
   }
+
 
   // ===== QUEUE / CHANNEL CONTEXT =====
   async function fetchChannelShortsPage(chId, continuation) {
@@ -193,19 +195,31 @@
   }
 
   async function prefetchMoreChannel() {
-    if (!channelMode || !channelId || !channelContinuation || isFetchingMore) return;
+    if (!channelMode || !channelId || isFetchingMore) return 0;
     isFetchingMore = true;
+    let addedTotal = 0;
     try {
-      const data = await fetchChannelShortsPage(channelId, channelContinuation);
-      const vids = data.videos || data.shorts || [];
-      channelContinuation = data.continuation || null;
-      const existing = new Set(queue.map(q => q.videoId));
-      const newItems = vids.filter(v => v.videoId && !existing.has(v.videoId))
-        .map(v => ({ videoId: v.videoId, meta: v }));
-      if (newItems.length) { queue.push(...newItems); updateNavBtns(); }
+      const MAX_TRIES = 4;
+      for (let i = 0; i < MAX_TRIES; i++) {
+        if (!channelContinuation) break;
+        const data = await fetchChannelShortsPage(channelId, channelContinuation);
+        const vids = data.videos || data.shorts || [];
+        channelContinuation = data.continuation || null;
+        const existing = new Set(queue.map(q => q.videoId));
+        const newItems = vids.filter(v => v.videoId && !existing.has(v.videoId))
+          .map(v => ({ videoId: v.videoId, meta: v }));
+        if (newItems.length) {
+          queue.push(...newItems);
+          addedTotal += newItems.length;
+          updateNavBtns();
+          break;
+        }
+      }
     } catch (_) {}
     isFetchingMore = false;
+    return addedTotal;
   }
+
 
   async function fetchSearchShortsPage(q, continuation) {
     let url = `/api/search?q=${encodeURIComponent(q)}&type=video`;
@@ -272,34 +286,53 @@
   }
 
   async function prefetchMoreSearch() {
-    if (!searchMode || !searchQueryStr || isFetchingMore) return;
+    if (!searchMode || !searchQueryStr || isFetchingMore) return 0;
     isFetchingMore = true;
+    let addedTotal = 0;
     try {
       const existing = new Set(queue.map(item => item.videoId));
-      const tasks = [];
-
-      searchShortPage1++;
-      tasks.push(fetchShortPage(searchQueryStr + ' ショート', searchShortPage1));
-
-      if (searchShortPage1 >= 3 || searchShortPage2 > 0) {
-        searchShortPage2++;
-        tasks.push(fetchShortPage(searchQueryStr + ' #shorts', searchShortPage2));
-      }
-
-      const results = await Promise.all(tasks);
-      const newItems = [];
-      results.flat().forEach(v => {
-        if (v.videoId && !existing.has(v.videoId)) {
-          existing.add(v.videoId);
-          newItems.push({ videoId: v.videoId, meta: v });
+      // 動画が見つかるまで最大5ページ進める (空ページでも次へ進める)
+      const MAX_TRIES = 5;
+      for (let i = 0; i < MAX_TRIES; i++) {
+        const tasks = [];
+        searchShortPage1++;
+        tasks.push(fetchShortPage(searchQueryStr + ' ショート', searchShortPage1));
+        if (searchShortPage1 >= 3 || searchShortPage2 > 0) {
+          searchShortPage2++;
+          tasks.push(fetchShortPage(searchQueryStr + ' #shorts', searchShortPage2));
         }
-      });
-      if (newItems.length) { queue.push(...newItems); updateNavBtns(); }
+        const results = await Promise.all(tasks);
+        const newItems = [];
+        results.flat().forEach(v => {
+          if (v.videoId && !existing.has(v.videoId)) {
+            existing.add(v.videoId);
+            newItems.push({ videoId: v.videoId, meta: v });
+          }
+        });
+        if (newItems.length) {
+          queue.push(...newItems);
+          addedTotal += newItems.length;
+          updateNavBtns();
+          break;
+        }
+      }
     } catch (_) {}
     isFetchingMore = false;
+    return addedTotal;
   }
 
-  function navigateTo(idx) {
+  async function navigateTo(idx) {
+    // 末尾を超えた場合は新しいページを取得しに行く
+    if (idx >= queue.length) {
+      const nextBtn = document.getElementById('sfNextBtn');
+      if (nextBtn) nextBtn.disabled = true;
+      let added = 0;
+      if (channelMode) await prefetchMoreChannel();
+      else if (searchMode) added = await prefetchMoreSearch();
+      else if (queue[queueIdx]) await prefetchMoreRecs(queue[queueIdx].videoId, queue[queueIdx].meta);
+      updateNavBtns();
+      if (idx >= queue.length) return; // それでも動画が無ければ何もしない
+    }
     if (idx < 0 || idx >= queue.length) return;
     queueIdx = idx;
     const item = queue[queueIdx];
@@ -330,6 +363,7 @@
     }
     closeSfComments();
   }
+
 
   // ===== COMMENTS =====
   let sfCommentsContinuation = null;

@@ -2742,6 +2742,17 @@ function initCustomControls() {
     _pbSetState(pbSavePos,  !!_ps.savePosition);
     _pbSetState(pbAutoNext, !!_ps.autoplayNext);
 
+    // クイックループボタン (再生方法の横)
+    const quickLoopBtn = document.getElementById('quickLoopBtn');
+    function _syncQuickLoop() {
+      if (!quickLoopBtn) return;
+      const on = pbLoop && pbLoop.getAttribute('data-state') === 'checked';
+      quickLoopBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      quickLoopBtn.classList.toggle('active', !!on);
+      quickLoopBtn.disabled = !!listParam;
+    }
+    _syncQuickLoop();
+
     // プレイリスト中はループ・次へ自動を無効表示
     if (listParam) {
       if (pbLoopRow)     pbLoopRow.classList.add('disabled');
@@ -2765,7 +2776,21 @@ function initCustomControls() {
       } else {
         _pbPersist({ loop: false });
       }
+      _syncQuickLoop();
     });
+
+    // クイックループ → pbLoop を発火
+    if (quickLoopBtn) quickLoopBtn.addEventListener('click', () => {
+      if (quickLoopBtn.disabled) return;
+      if (pbLoop) pbLoop.click();
+      else {
+        // フォールバック: 直接プレーヤーを切替
+        player.loop = !player.loop;
+        quickLoopBtn.setAttribute('aria-pressed', player.loop ? 'true' : 'false');
+        quickLoopBtn.classList.toggle('active', player.loop);
+      }
+    });
+
 
     // 自動再生トグル
     if (pbAutoplay) pbAutoplay.addEventListener('click', () => {
@@ -2790,6 +2815,7 @@ function initCustomControls() {
         _pbSetState(pbLoop, false);
         player.loop = false;
         _pbPersist({ autoplayNext: true, loop: false });
+        _syncQuickLoop();
       } else {
         _pbPersist({ autoplayNext: false });
       }
