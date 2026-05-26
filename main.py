@@ -570,7 +570,7 @@ async def api_instances():
 
 @app.get("/whats")
 async def whats():
-    return {"name": "choco-tube-plus"}
+    return {"name": "choco-tube-pro"}
 
 
 @app.get("/version")
