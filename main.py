@@ -627,7 +627,7 @@ async def translate_text(request: Request):
     return {"text": "".join(out_parts)}
 
 
-LINKLIST_URL = "https://raw.githubusercontent.com/kuru-bana/Link-list/refs/heads/main/choco-tube-plus.json"
+LINKLIST_URL = "https://raw.githubusercontent.com/kuru-bana/Link-list/refs/heads/main/choco-tube-pro.json"
 
 
 async def _check_one(url: str) -> dict:
